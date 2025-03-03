@@ -2,13 +2,6 @@ name: Test
 
 on:
   push:
-    branches:
-      - main
-  merge_group:
-  pull_request:
-    branches:
-      - "**"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.event.pull_request.number || github.ref }}
