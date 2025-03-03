@@ -23,14 +23,14 @@ env:
 jobs:
   unit:
     name: Unit Tests
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: ./.github/actions/unit-test
 
   build_contracts_image:
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     if: ${{ contains('["merge_group", "workflow_dispatch"]', github.event_name) }} # skip-merge queue
     strategy:
       matrix:
@@ -117,7 +117,7 @@ jobs:
     name: Integration tests
     needs:
       - build_contracts_image
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout sources
@@ -163,7 +163,7 @@ jobs:
       local-artifact-dir: "/tmp"
 
   e2e-test:
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -215,7 +215,7 @@ jobs:
         run: docker push ${{ env.DOCKER_IMAGE }}
 
   check_elf:
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     if: ${{ contains('["merge_group", "workflow_dispatch"]', github.event_name) }}
     name: ELF Checking
     steps:
