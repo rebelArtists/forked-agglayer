@@ -175,7 +175,7 @@ jobs:
           path: /tmp
 
       - name: Run Polygon Test Runner
-        uses: agglayer/e2e@v1.0.3
+        uses: agglayer/e2e@v1.0.4
         with:
           network: fork12-cdk-erigon-validium
           docker-image-tar-path: /tmp/docker-image.tar
