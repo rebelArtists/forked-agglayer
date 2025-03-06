@@ -17,20 +17,19 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   REGISTRY: ghcr.io
-  KURTOSIS_CDK_GIT_REF: v0.2.11
   ZKEVM_CONTRACT_GIT_REF: feature/ongoing-v0.3.0-docker
 
 jobs:
   unit:
     name: Unit Tests
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: ./.github/actions/unit-test
 
   build_contracts_image:
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     if: ${{ contains('["merge_group", "workflow_dispatch"]', github.event_name) }} # skip-merge queue
     strategy:
       matrix:
@@ -117,7 +116,7 @@ jobs:
     name: Integration tests
     needs:
       - build_contracts_image
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout sources
@@ -154,7 +153,6 @@ jobs:
 
   docker-build-local:
     name: E2E Tests | Docker build
-    if: ${{ contains('["merge_group", "workflow_dispatch"]', github.event_name) }} # skip-merge queue
     uses: ./.github/workflows/docker-build.yml
     secrets: inherit
     with:
@@ -162,67 +160,26 @@ jobs:
       local-artifact-name: "docker-image"
       local-artifact-dir: "/tmp"
 
-  e2e-kurtosis-cdk:
-    name: E2E Tests | Kurtosis-CDK
-    runs-on: ubuntu-latest-16-cores
+  e2e-test:
+    runs-on: ubuntu-latest
     needs:
       - docker-build-local
     steps:
-      - name: Download artifact
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download AggLayer Docker Image
         uses: actions/download-artifact@v4
         with:
-          name: "docker-image"
-          path: "/tmp"
+          name: docker-image
+          path: /tmp
 
-      - name: Load image
-        run: |
-          echo ${{ needs.docker-build-local.outputs.tags }}
-          docker load --input /tmp/docker-image.tar
-          docker image ls -a
-
-      - name: Checkout kurtosis-cdk
-        uses: actions/checkout@v4
+      - name: Run Polygon Test Runner
+        uses: agglayer/e2e@v1.0.5
         with:
-          repository: 0xpolygon/kurtosis-cdk
-          ref: ${{ env.KURTOSIS_CDK_GIT_REF }}
-
-      - name: Replace param with local agglayer-rs docker img
-        run: |
-          new_value="${{ needs.docker-build-local.outputs.tags }}"
-
-          # Escape special characters in the new value
-          escaped_new_value=$(sed 's/[\/&]/\\&/g' <<< "$new_value")
-
-          sed -i "s/zkevm_agglayer_image: .*/zkevm_agglayer_image: $escaped_new_value/" "params.yml"
-
-          # Debug
-          cat params.yml
-
-      - name: Install kurtosis
-        run: |
-          echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
-          sudo apt update
-          sudo apt install kurtosis-cli=1.3.1
-          kurtosis analytics disable
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Run kurtosis
-        run: kurtosis run --enclave cdk-v1 --args-file params.yml --image-download always .
-
-      - name: Expose RPC URL
-        run: echo "ETH_RPC_URL=$(kurtosis port print cdk-v1 cdk-erigon-node-001 http-rpc)" >> $GITHUB_ENV
-
-      - name: Check that batches are progressing
-        continue-on-error: true
-        env:
-          ETH_RPC_URL: ${{ env.ETH_RPC_URL }}
-          TIMEOUT_SECONDS: 900
-        run: ./.github/scripts/monitor-verified-batches.sh --rpc-url "$ETH_RPC_URL"
-
-      - name: debug
-        run: kurtosis service logs cdk-v1 agglayer
+          network: fork12-cdk-erigon-validium
+          docker-image-tar-path: /tmp/docker-image.tar
+          filter-tags: batch-verification
 
   pushing-docker-image:
     name: Docker | Publish image to registry
@@ -232,7 +189,7 @@ jobs:
       packages: write
     needs:
       - docker-build-local
-      - e2e-kurtosis-cdk
+      - e2e-test
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -258,7 +215,7 @@ jobs:
         run: docker push ${{ env.DOCKER_IMAGE }}
 
   check_elf:
-    runs-on: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     if: ${{ contains('["merge_group", "workflow_dispatch"]', github.event_name) }}
     name: ELF Checking
     steps:
